@@ -1,0 +1,107 @@
+---
+title: "Industry_Cleaning"
+author: "Zhibao Li"
+date: "2021/9/27"
+output: html_document
+---
+
+```{r}
+library(tibble)
+library(dplyr)
+library(tidyverse)
+data<-read.csv('10industries_hourwages.csv',na.string=c(''))
+industry<-c('null')
+data$industry<-industry
+
+#(1)mapping SeriesID and Industry
+data[data$seriesID=='CES2000000003',]$industry<-'Construction'
+data[data$seriesID=='CES6500000003',]$industry<-'Education and health services'
+data[data$seriesID=='CES5500000003',]$industry<-'Financial activities'
+data[data$seriesID=='CES5000000003',]$industry<-'Information'
+data[data$seriesID=='CES7000000003',]$industry<-'Leisure and hospitality'
+data[data$seriesID=='CES3000000003',]$industry<-'Manufacturing'
+data[data$seriesID=='CES1000000003',]$industry<-'Mining and logging'
+data[data$seriesID=='CES8000000003',]$industry<-'Other services'
+data[data$seriesID=='CES6000000003',]$industry<-'Professional and business services'
+data[data$seriesID=='CES4000000003',]$industry<-'Trade, transportation, and utilities'
+
+
+
+```
+
+
+```{r}
+##(2)Rename columns 
+names(data)[names(data) == 'value'] <- 'hourly_wage'
+names(data)[names(data) == 'period'] <- 'month'
+head(data)
+
+```
+
+```{r}
+
+#(3)Correct Missing Values
+#I found wage data on Sep, Oct, Nov, Dec, 2021 is missing, 
+#so using wage mean in the first eight months 2021 to supplement 
+str(data)
+Months<-c('M09','M10','M11','M12')
+industry<-unique(data[c("industry")])$industry
+for (i in industry){
+  Data_Con<-data[data$year==2021&data$industry==i,]
+  Mean_Con<-mean(Data_Con$hourly_wage)
+  
+  for (j in Months){Data_Con<-Data_Con %>% 
+    add_row(seriesID=Data_Con$seriesID[1],year=2021,month=j,
+            hourly_wage=Mean_Con,industry=Data_Con$industry[1],.before=1)}
+  data<-data %>% add_row(Data_Con[1:12,],.before=1)
+  data<-data[!duplicated(data), ]
+  }
+data<-data %>% arrange(seriesID)
+
+
+
+
+```
+
+```{r}
+#(4)compute annual wage based on hourly wage
+Y_Months<-12
+M_weeks<-52/12
+W_hours<-40
+M_hours<-M_weeks*W_hours
+Years<-c(2021,2020,2019,2018,2017,2016)
+data['Annual_wage']<-c('null')
+for (i in industry){
+  for (j in Years){
+    Con1<-data[data$industry==i&data$year==j,]
+    A_salary<-M_hours*sum(Con1$hourly_wage)
+    A_salary<-round(A_salary,digits=0)
+    data[data$industry==i&data$year==j,]$Annual_wage<-A_salary
+  }
+}
+data <- data[, c(1, 5, 2, 3, 4,6)]
+
+
+```
+
+```{r}
+#(5)EDA
+#data Summary 
+summary(data)
+#Wages change of One industry in 6 years
+library(ggplot2)
+subdata<-data[data$industry==industry[1],]
+x=unique(subdata$year)
+y=unique(subdata$Annual_wage)
+plot(x,y,col='blue')
+
+#Wages change of 10 industries in 6 years
+ggplot(data=data, aes(x=year, y=Annual_wage, 
+                      group = industry, 
+                      colour = as.factor(industry)))+geom_line()
+
+data$hourly_wage<-round(data$hourly_wage,digits=2)
+
+#outfile
+#write.csv2(data,'Cleaned_industry_wages', row.names = FALSE)
+```
